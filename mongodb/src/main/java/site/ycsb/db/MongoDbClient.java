@@ -24,15 +24,11 @@
  */
 package site.ycsb.db;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.client.*;
 import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
@@ -69,7 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MongoDbClient extends DB {
 
   /** Used to include a field in a response. */
-  private static final Integer INCLUDE = Integer.valueOf(1);
+  private static final Integer INCLUDE = 1;
 
   /** The options to use for inserting many documents. */
   private static final InsertManyOptions INSERT_UNORDERED =
@@ -79,10 +75,8 @@ public class MongoDbClient extends DB {
   private static final UpdateOptions UPDATE_WITH_UPSERT = new UpdateOptions()
       .upsert(true);
 
-  /**
-   * The database name to access.
-   */
-  private static String databaseName;
+  private static final ReplaceOptions REPLACE_OPTIONS_WITH_UPSERT = new ReplaceOptions()
+      .upsert(true);
 
   /** The database name to access. */
   private static MongoDatabase database;
@@ -97,10 +91,10 @@ public class MongoDbClient extends DB {
   private static MongoClient mongoClient;
 
   /** The default read preference for the test. */
-  private static ReadPreference readPreference;
+  private static ReadPreference readPreference; //TODO reimplement if required
 
   /** The default write concern for the test. */
-  private static WriteConcern writeConcern;
+  private static WriteConcern writeConcern; //TODO reimplement if required
 
   /** The batch size to use for inserts. */
   private static int batchSize;
@@ -110,6 +104,9 @@ public class MongoDbClient extends DB {
 
   /** The bulk inserts pending for the thread. */
   private final List<Document> bulkInserts = new ArrayList<Document>();
+
+
+  private ClientSession currentSession;
 
   /**
    * Cleanup any state for this DB. Called once per DB instance; there is one DB
@@ -149,7 +146,7 @@ public class MongoDbClient extends DB {
 
       Document query = new Document("_id", key);
       DeleteResult result =
-          collection.withWriteConcern(writeConcern).deleteOne(query);
+          collection.withWriteConcern(writeConcern).deleteOne(currentSession, query);
       if (result.wasAcknowledged() && result.getDeletedCount() == 0) {
         System.err.println("Nothing deleted for key " + key);
         return Status.NOT_FOUND;
@@ -187,7 +184,7 @@ public class MongoDbClient extends DB {
       // to configure the client.
       String url = props.getProperty("mongodb.url", null);
       boolean defaultedUrl = false;
-      if (url == null) {
+      if (url == null || url.isEmpty()) {
         defaultedUrl = true;
         url = "mongodb://localhost:27017/ycsb?w=1";
       }
@@ -204,26 +201,22 @@ public class MongoDbClient extends DB {
       }
 
       try {
-        MongoClientURI uri = new MongoClientURI(url);
+        String databaseName = "ycsb"; // TODO reimplement logic?
+//        if (!defaultedUrl) {
+//          databaseName = "ycsb";
+//        } else {
+//          // If no database is specified in URI, use "ycsb"
+//          databaseName = "ycsb";
+//        }
 
-        String uriDb = uri.getDatabase();
-        if (!defaultedUrl && (uriDb != null) && !uriDb.isEmpty()
-            && !"admin".equals(uriDb)) {
-          databaseName = uriDb;
-        } else {
-          // If no database is specified in URI, use "ycsb"
-          databaseName = "ycsb";
 
-        }
+        mongoClient = MongoClients.create(url);
+        database = mongoClient.getDatabase(databaseName);
 
-        readPreference = uri.getOptions().getReadPreference();
-        writeConcern = uri.getOptions().getWriteConcern();
+        writeConcern = WriteConcern.ACKNOWLEDGED;
+        readPreference = ReadPreference.primary();
 
-        mongoClient = new MongoClient(uri);
-        database =
-            mongoClient.getDatabase(databaseName)
-                .withReadPreference(readPreference)
-                .withWriteConcern(writeConcern);
+        currentSession = mongoClient.startSession();
 
         System.out.println("mongo client connection created with " + url);
       } catch (Exception e1) {
@@ -234,6 +227,38 @@ public class MongoDbClient extends DB {
         return;
       }
     }
+  }
+
+
+  @Override
+  public Status start() {
+    try {
+      if ( currentSession == null) currentSession = mongoClient.startSession();
+      currentSession.startTransaction();
+    } catch (Exception e) {
+      return Status.ERROR;
+    }
+    return Status.OK;
+  }
+
+  @Override
+  public Status commit() {
+    try {
+      currentSession.commitTransaction();
+    } catch (Exception e) {
+      return Status.ERROR;
+    }
+    return Status.OK;
+  }
+
+  @Override
+  public Status rollback() {
+    try {
+      currentSession.abortTransaction();
+    } catch (Exception e) {
+      return Status.ERROR;
+    }
+    return Status.OK;
   }
 
   /**
@@ -265,10 +290,12 @@ public class MongoDbClient extends DB {
           // this is effectively an insert, but using an upsert instead due
           // to current inability of the framework to clean up after itself
           // between test runs.
-          collection.replaceOne(new Document("_id", toInsert.get("_id")),
-              toInsert, UPDATE_WITH_UPSERT);
+
+          collection.replaceOne(currentSession, new Document("_id", toInsert.get("_id")),
+              toInsert, REPLACE_OPTIONS_WITH_UPSERT);
+
         } else {
-          collection.insertOne(toInsert);
+          collection.insertOne(currentSession, toInsert);
         }
       } else {
         bulkInserts.add(toInsert);
@@ -281,9 +308,9 @@ public class MongoDbClient extends DB {
                   new Document("_id", doc.get("_id")),
                   doc, UPDATE_WITH_UPSERT));
             }
-            collection.bulkWrite(updates);
+            collection.bulkWrite(currentSession, updates);
           } else {
-            collection.insertMany(bulkInserts, INSERT_UNORDERED);
+            collection.insertMany(currentSession, bulkInserts, INSERT_UNORDERED);
           }
           bulkInserts.clear();
         } else {
@@ -321,7 +348,7 @@ public class MongoDbClient extends DB {
       MongoCollection<Document> collection = database.getCollection(table);
       Document query = new Document("_id", key);
 
-      FindIterable<Document> findIterable = collection.find(query);
+      FindIterable<Document> findIterable = collection.find(currentSession, query);
 
       if (fields != null) {
         Document projection = new Document();
@@ -373,7 +400,7 @@ public class MongoDbClient extends DB {
       Document sort = new Document("_id", INCLUDE);
 
       FindIterable<Document> findIterable =
-          collection.find(query).sort(sort).limit(recordcount);
+          collection.find(currentSession, query).sort(sort).limit(recordcount);
 
       if (fields != null) {
         Document projection = new Document();
@@ -440,14 +467,13 @@ public class MongoDbClient extends DB {
       }
       Document update = new Document("$set", fieldsToSet);
 
-      UpdateResult result = collection.updateOne(query, update);
+      UpdateResult result = collection.updateOne(currentSession, query, update);
       if (result.wasAcknowledged() && result.getMatchedCount() == 0) {
         System.err.println("Nothing updated for key " + key);
         return Status.NOT_FOUND;
       }
       return Status.OK;
     } catch (Exception e) {
-      System.err.println(e.toString());
       return Status.ERROR;
     }
   }
