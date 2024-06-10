@@ -103,7 +103,10 @@ public class OrientDBClient extends DB {
         try (final ODatabaseSession session = pool.acquire()) {
           final OClass newClass = session.createClassIfNotExist(CLASS);
           LOG.info("OrientDB class created = " + CLASS);
-          newClass.createProperty("key", OType.STRING);
+          if (!newClass.existsProperty("key")) {
+            newClass.createProperty("key", OType.STRING);
+          }
+
           LOG.info("OrientDB class property created = 'key'.");
         }
         createIndexForCollection(dbName);
@@ -113,6 +116,7 @@ public class OrientDBClient extends DB {
     } catch (final Exception e) {
       LOG.error("Could not initialize OrientDB connection pool for Loader: " + e.toString());
       e.printStackTrace();
+      throw e;
     } finally {
       REENTRANT_INIT_LOCK.unlock();
     }
@@ -142,12 +146,15 @@ public class OrientDBClient extends DB {
   private void createIndexForCollection(final String dbTable) {
     try (final ODatabaseSession session = pool.acquire()) {
       final OClass cls = session.getClass(CLASS);
-      cls.createIndex(dbTable + "keyidx", OClass.INDEX_TYPE.NOTUNIQUE, "key");
-      LOG.info(
-          "OrientDB index created = 'keyidx' of type = "
-              + OClass.INDEX_TYPE.NOTUNIQUE
-              + " on 'key'.");
-    }
+      String index = dbTable + "keyidx";
+      if (cls.getClassIndex(index) == null) {
+        cls.createIndex(index, OClass.INDEX_TYPE.NOTUNIQUE, "key");
+        LOG.info(
+            "OrientDB index created = 'keyidx' of type = "
+                + OClass.INDEX_TYPE.NOTUNIQUE
+                + " on 'key'.");
+        }
+      }
   }
 
   protected ODatabasePool getDatabasePool() {
