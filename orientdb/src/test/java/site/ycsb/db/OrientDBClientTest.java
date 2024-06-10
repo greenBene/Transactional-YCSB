@@ -28,6 +28,7 @@ import site.ycsb.StringByteIterator;
 import java.util.*;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class OrientDBClientTest {
   private static final String CLASS = "usertable";
@@ -61,18 +62,23 @@ public class OrientDBClientTest {
 
   @Test
   public void insertTest() {
+    OrientDBClient.start();
     final String insertKey = "user0-insert";
     final Map<String, ByteIterator> insertMap = insertRow(insertKey);
+    OrientDBClient.commit();
     Assert.assertEquals(Status.OK, OrientDBClient.insert(CLASS, insertKey, insertMap));
   }
 
   @Test
   public void readTest() {
+    OrientDBClient.start();
     final String insertKey = "user0";
     final Map<String, ByteIterator> insertMap = insertRow(insertKey);
     final HashSet<String> readFields = new HashSet<>();
-
+    OrientDBClient.commit();
     // Test reading a single field
+
+    OrientDBClient.start();
     readFields.add("FIELD0");
     Map<String, ByteIterator> readResultMap = new HashMap<>();
     OrientDBClient.read(CLASS, insertKey, readFields, readResultMap);
@@ -92,12 +98,14 @@ public class OrientDBClientTest {
     OrientDBClient.read(CLASS, insertKey, readFields, readResultMap);
     assertEquals(
         "Assert that result has correct number of fields", readFields.size(), readResultMap.size());
+    OrientDBClient.commit();
     for (final String field : readFields) {
       assertEquals(
           "Assert " + field + " was read correctly",
           insertMap.get(field).toString(),
           readResultMap.get(field).toString());
     }
+
   }
 
   @Test
@@ -107,22 +115,17 @@ public class OrientDBClientTest {
     String user1 = "user1";
     String user2 = "user2";
 
-    ODatabasePool pool = OrientDBClient.getDatabasePool();
-    try (final ODatabaseSession session = pool.acquire()) {
-      session.begin();
-      // Manually insert three documents
-      for (final String key : Arrays.asList(user0, user1, user2)) {
-        ODocument doc = new ODocument(CLASS);
-        for (int i = 0; i < NUM_FIELDS; i++) {
-          doc.field("key", key);
-          doc.field(FIELD_PREFIX + i, preupdateString);
-        }
-        doc.save();
-        // ODictionary<ORecord> dictionary = session.getDictionary();
-        // dictionary.put(key, doc);
-      }
-      session.commit();
+    final Map<String, ByteIterator> initialMap = new HashMap<>();
+    for (int i = 0; i < NUM_FIELDS; i++) {
+      initialMap.put(
+          FIELD_PREFIX + i,
+          new StringByteIterator(preupdateString));
     }
+    assertEquals(Status.OK, OrientDBClient.start());
+    for (final String key: Arrays.asList(user0, user1, user2)) {
+      assertEquals(Status.OK, OrientDBClient.insert(CLASS, key, initialMap));
+    }
+    assertEquals(Status.OK, OrientDBClient.commit());
 
     final Map<String, ByteIterator> updateMap = new HashMap<>();
     for (int i = 0; i < NUM_FIELDS; i++) {
@@ -130,10 +133,13 @@ public class OrientDBClientTest {
           FIELD_PREFIX + i,
           new StringByteIterator(buildDeterministicValue(user1, FIELD_PREFIX + i)));
     }
-    OrientDBClient.update(CLASS, user1, updateMap);
-
+    OrientDBClient.start();
+    assertEquals(Status.OK, OrientDBClient.update(CLASS, user1, updateMap));
+    assertEquals(Status.OK, OrientDBClient.commit());
     Map<String, ByteIterator> readResultMap = new HashMap<>();
-    OrientDBClient.read(CLASS, user0, null, readResultMap);
+
+    OrientDBClient.start();
+    assertEquals(Status.OK, OrientDBClient.read(CLASS, user0, null, readResultMap));
     for (int i = 0; i < NUM_FIELDS; i++) {
       assertEquals(
           "Assert first row fields contain preupdateString",
@@ -160,10 +166,12 @@ public class OrientDBClientTest {
           readResultMap.get(FIELD_PREFIX + i).toString(),
           preupdateString);
     }
+    OrientDBClient.commit();
   }
 
   @Test
   public void deleteTest() {
+    OrientDBClient.start();
     final String user0 = "user0";
     final String user1 = "user1";
     final String user2 = "user2";
@@ -171,7 +179,13 @@ public class OrientDBClientTest {
     insertRow(user0);
     insertRow(user1);
     insertRow(user2);
+    OrientDBClient.commit();
+
+    OrientDBClient.start();
     OrientDBClient.delete(CLASS, user1);
+    OrientDBClient.commit();
+
+    OrientDBClient.start();
 
     final Map<String, ByteIterator> readResultMap = new HashMap<>();
     OrientDBClient.read(CLASS, user0, null, readResultMap);
@@ -183,24 +197,29 @@ public class OrientDBClientTest {
     OrientDBClient.read(CLASS, user2, null, readResultMap);
     assertEquals("Assert user2 still exists", "user2", readResultMap.get("key").toString());
     readResultMap.clear();
+    OrientDBClient.commit();
   }
 
   @Test
   public void scanTest() {
+    OrientDBClient.start();
     final Map<String, Map<String, ByteIterator>> keyMap = new HashMap<>();
     for (int i = 0; i < 5; i++) {
       final String insertKey = KEY_PREFIX + i;
       keyMap.put(insertKey, insertRow(insertKey));
     }
+    OrientDBClient.commit();
     final Set<String> fieldSet = new HashSet<>();
     fieldSet.add("FIELD0");
     fieldSet.add("FIELD1");
     int startIndex = 0;
     int resultRows = 3;
 
+
+    OrientDBClient.start();
     final Vector<HashMap<String, ByteIterator>> resultVector = new Vector<>();
     OrientDBClient.scan(CLASS, KEY_PREFIX + startIndex, resultRows, fieldSet, resultVector);
-
+    OrientDBClient.commit();
     // Check the resultVector is the correct size
     assertEquals(
         "Assert the correct number of results rows were returned", resultRows, resultVector.size());
@@ -233,7 +252,9 @@ public class OrientDBClientTest {
     int resultRows = 3;
 
     final Vector<HashMap<String, ByteIterator>> resultVector = new Vector<>();
+    OrientDBClient.start();
     OrientDBClient.scan(CLASS, KEY_PREFIX + startIndex, resultRows, fieldSet, resultVector);
+    OrientDBClient.commit();
 
     // Check the resultVector is the correct size
     assertEquals(

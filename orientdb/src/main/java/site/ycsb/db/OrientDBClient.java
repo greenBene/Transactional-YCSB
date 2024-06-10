@@ -28,8 +28,6 @@ import site.ycsb.*;
 
 import java.io.File;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /** OrientDB client for YCSB framework. */
@@ -58,17 +56,16 @@ public class OrientDBClient extends DB {
 
   private static final String CLASS = "usertable";
 
-  private static final Lock REENTRANT_INIT_LOCK = new ReentrantLock();
-  private static volatile ODatabasePool pool;
-  private static volatile OrientDB orient;
-
-  private static boolean initialized = false;
-  private static int clientCounter = 0;
+  private volatile OrientDB orient;
 
   /** The batch size to use for inserts. */
   private static int batchSize = 1;
 
   private final List<OElement> elementsBatch = new ArrayList<>();
+
+  private ODatabaseSession databaseSession;
+
+
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per
@@ -77,48 +74,42 @@ public class OrientDBClient extends DB {
   public void init() throws DBException {
     batchSize = Integer.parseInt(getProperties().getProperty("batchsize", "1"));
 
-    REENTRANT_INIT_LOCK.lock();
     try {
-      clientCounter++;
-      if (!initialized) {
-        final ConnectionProperties cp = new ConnectionProperties();
+      final ConnectionProperties cp = new ConnectionProperties();
 
-        String url = cp.getUrl();
-        LOG.info("OrientDB loading database url = " + url);
-        final OURLConnection urlHelper = OURLHelper.parseNew(url);
-        initAndGetDatabaseUrlAndDbType(url, cp.getServerUser(), cp.getServerUserPassword());
+      String url = cp.getUrl();
+      LOG.info("OrientDB loading database url = " + url);
+      final OURLConnection urlHelper = OURLHelper.parseNew(url);
+      initAndGetDatabaseUrlAndDbType(url, cp.getServerUser(), cp.getServerUserPassword());
 
-        final String dbName = urlHelper.getDbName();
-        if (cp.newDb && orient.exists(dbName)) {
-          orient.drop(dbName);
-        }
-        ODatabaseType dbType = urlHelper.getDbType().orElse(ODatabaseType.PLOCAL);
-        orient.createIfNotExists(dbName, dbType);
-        if (!orient.isOpen()) {
-          orient.open(dbName, cp.getUser(), cp.getPassword());
-        }
-        if (pool == null) {
-          pool = new ODatabasePool(orient, dbName, cp.getUser(), cp.getPassword());
-        }
-        try (final ODatabaseSession session = pool.acquire()) {
-          final OClass newClass = session.createClassIfNotExist(CLASS);
-          LOG.info("OrientDB class created = " + CLASS);
-          if (!newClass.existsProperty("key")) {
-            newClass.createProperty("key", OType.STRING);
-          }
-
-          LOG.info("OrientDB class property created = 'key'.");
-        }
-        createIndexForCollection(dbName);
-        initialized = true;
-        LOG.info("OrientDB successfully initialized.");
+      final String dbName = urlHelper.getDbName();
+      if (cp.newDb && orient.exists(dbName)) {
+        orient.drop(dbName);
       }
+      ODatabaseType dbType = urlHelper.getDbType().orElse(ODatabaseType.PLOCAL);
+      orient.createIfNotExists(dbName, dbType);
+      if (!orient.isOpen()) {
+        orient.open(dbName, cp.getUser(), cp.getPassword());
+      }
+      databaseSession = orient.open(dbName, cp.getUser(), cp.getPassword());
+
+
+      final OClass newClass = databaseSession.createClassIfNotExist(CLASS);
+      LOG.info("OrientDB class created = " + CLASS);
+      if (!newClass.existsProperty("key")) {
+        newClass.createProperty("key", OType.STRING);
+      }
+
+      LOG.info("OrientDB class property created = 'key'.");
+
+      createIndexForCollection(dbName);
+
+      LOG.info("OrientDB successfully initialized.");
+
     } catch (final Exception e) {
       LOG.error("Could not initialize OrientDB connection pool for Loader: " + e.toString());
       e.printStackTrace();
       throw e;
-    } finally {
-      REENTRANT_INIT_LOCK.unlock();
     }
   }
 
@@ -144,47 +135,26 @@ public class OrientDBClient extends DB {
   }
 
   private void createIndexForCollection(final String dbTable) {
-    try (final ODatabaseSession session = pool.acquire()) {
-      final OClass cls = session.getClass(CLASS);
-      String index = dbTable + "keyidx";
-      if (cls.getClassIndex(index) == null) {
-        cls.createIndex(index, OClass.INDEX_TYPE.NOTUNIQUE, "key");
-        LOG.info(
-            "OrientDB index created = 'keyidx' of type = "
-                + OClass.INDEX_TYPE.NOTUNIQUE
-                + " on 'key'.");
-        }
-      }
-  }
 
-  protected ODatabasePool getDatabasePool() {
-    return pool;
+    final OClass cls = databaseSession.getClass(CLASS);
+    String index = dbTable + "keyidx";
+    if (cls.getClassIndex(index) == null) {
+      cls.createIndex(index, OClass.INDEX_TYPE.NOTUNIQUE, "key");
+      LOG.info(
+          "OrientDB index created = 'keyidx' of type = "
+              + OClass.INDEX_TYPE.NOTUNIQUE
+              + " on 'key'.");
+      }
+
   }
 
   @Override
   public void cleanup() throws DBException {
-    REENTRANT_INIT_LOCK.lock();
-    try {
-      clientCounter--;
-      if (clientCounter == 0) {
-        orient.close();
-        orient = null;
-        pool.close();
-        pool = null;
-        initialized = false;
-        LOG.info("OrientDB successful cleanup.");
-      }
-    } finally {
-      REENTRANT_INIT_LOCK.unlock();
-    }
-  }
+    orient.close();
+    orient = null;
+    databaseSession.close();
+    LOG.info("OrientDB successful cleanup.");
 
-  public Status flush(final String table) throws DBException {
-    try (final ODatabaseSession session = pool.acquire()) {
-      session.begin();
-      // actually Status.NOTHING_TO_DO
-      return (elementsBatch.size() == 0) ? Status.OK : commitBatch(session);
-    }
   }
 
   void dropTable(final String dbName) {
@@ -194,36 +164,72 @@ public class OrientDBClient extends DB {
   }
 
   @Override
+  public Status start() {
+    try {
+      databaseSession.begin();
+      return Status.OK;
+    } catch (OConcurrentModificationException e) {
+      return Status.ERROR;
+    } catch (Exception e) {
+      e.printStackTrace();
+      return Status.ERROR;
+    }
+  }
+
+  @Override
+  public Status commit() {
+    try {
+      databaseSession.commit();
+      return Status.OK;
+    } catch (OConcurrentModificationException e) {
+      return Status.ERROR;
+    } catch (Exception e) {
+      e.printStackTrace();
+      return Status.ERROR;
+    }
+  }
+
+  @Override
+  public Status rollback() {
+    try {
+      databaseSession.rollback();
+      return Status.OK;
+    } catch (OConcurrentModificationException e) {
+      return Status.ERROR;
+    } catch (Exception e) {
+      e.printStackTrace();
+      return Status.ERROR;
+    }
+  }
+
+  @Override
   public Status insert(
       final String table, final String key, final Map<String, ByteIterator> values) {
-    try (final ODatabaseSession session = pool.acquire()) {
+    try{
       // create outside of tx
-      final OElement element = session.newInstance(table);
+      final OElement element = databaseSession.newInstance(table);
       element.setProperty("key", key);
 
-      session.begin();
       StringByteIterator.getStringMap(values).entrySet().stream()
           .forEach(e -> element.setProperty(e.getKey(), e.getValue()));
       if (batchSize == 1) {
         element.save();
-        session.commit();
         return Status.OK;
       } else {
         elementsBatch.add(element);
       }
-      return (elementsBatch.size() != batchSize) ? Status.BATCHED_OK : commitBatch(session);
+      return (elementsBatch.size() != batchSize) ? Status.BATCHED_OK : saveBatch();
     } catch (final Exception e) {
       e.printStackTrace();
     }
     return Status.ERROR;
   }
 
-  private Status commitBatch(final ODatabaseSession session) {
+  private Status saveBatch() {
     try {
       for (final OElement element : elementsBatch) {
         element.save();
       }
-      session.commit();
     } catch (final Exception e) {
       System.err.println("Unable to insert batch data n. " + elementsBatch.size());
       return Status.ERROR;
@@ -236,13 +242,11 @@ public class OrientDBClient extends DB {
   @Override
   public Status delete(final String table, final String key) {
     while (true) {
-      try (final ODatabaseSession session = pool.acquire()) {
-        session.begin();
+      try {
         final Map<String, Object> params = new HashMap<>();
         params.put("key", key);
         final String delete = "DELETE FROM " + table + " WHERE key = :key";
-        session.command(delete, params);
-        session.commit();
+        databaseSession.command(delete, params);
         return Status.OK;
       } catch (OConcurrentModificationException cme) {
         // just continue
@@ -278,8 +282,8 @@ public class OrientDBClient extends DB {
             + table
             + "` "
             + "WHERE key = :key";
-    try (final ODatabaseSession session = pool.acquire();
-        final OResultSet rs = session.query(querySelected, params)) {
+    try {
+      final OResultSet rs = databaseSession.query(querySelected, params);
       rs.stream()
           .forEach(
               e -> e.getPropertyNames().stream()
@@ -298,8 +302,8 @@ public class OrientDBClient extends DB {
     final Map<String, Object> params = new HashMap<>();
     params.put("key", key);
     final String queryAll = "SELECT * " + "FROM `" + table + "` " + "WHERE key = :key";
-    try (final ODatabaseSession session = pool.acquire();
-        final OResultSet rs = session.query(queryAll, params)) {
+    try {
+      final OResultSet rs = databaseSession.query(queryAll, params);
       rs.stream()
           .forEach(
               e -> e.getPropertyNames().stream()
@@ -341,8 +345,8 @@ public class OrientDBClient extends DB {
             + "WHERE key >= ':key'"
             + " ORDER BY key ASC"
             + " LIMIT :limit";
-    try (final ODatabaseSession session = pool.acquire();
-        final OResultSet rs = session.query(scan, params)) {
+    try {
+      final OResultSet rs = databaseSession.query(scan, params);
       rs.stream()
           .forEach(
               e -> {
@@ -363,13 +367,11 @@ public class OrientDBClient extends DB {
   public Status update(
       final String table, final String key, final Map<String, ByteIterator> values) {
     while (true) {
-      try (final ODatabaseSession session = pool.acquire()) {
-        session.begin();
+      try {
         final Map<String, Object> params = new HashMap<>();
         params.put("key", escapeUnsupportedChars(key));
         final String update = preparedUpdateSql(table, values);
-        session.command(update, params);
-        session.commit();
+        databaseSession.command(update, params);
         return Status.OK;
       } catch (OConcurrentModificationException cme) {
         continue;
@@ -414,7 +416,7 @@ public class OrientDBClient extends DB {
       url = props.getProperty(URL_PROPERTY, URL_PROPERTY_DEFAULT);
       user = props.getProperty(USER_PROPERTY, USER_PROPERTY_DEFAULT);
       password = props.getProperty(PASSWORD_PROPERTY, PASSWORD_PROPERTY_DEFAULT);
-      serverUser = props.getProperty(SERVER_USER_PROPERTY, SERVER_PASSWORD_PROPERTY_DEFAULT);
+      serverUser = props.getProperty(SERVER_USER_PROPERTY, SERVER_USER_PROPERTY_DEFAULT);
       serverUserPassword = props.getProperty(SERVER_PASSWORD_PROPERTY, SERVER_PASSWORD_PROPERTY_DEFAULT);
       newDb = Boolean.parseBoolean(props.getProperty(NEWDB_PROPERTY, NEWDB_PROPERTY_DEFAULT));
       final String remoteStorageType = props.getProperty(STORAGE_TYPE_PROPERTY);
