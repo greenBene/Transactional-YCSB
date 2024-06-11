@@ -238,20 +238,19 @@ public class OrientDBClient extends DB {
 
   @Override
   public Status delete(final String table, final String key) {
-    while (true) {
-      try {
-        final Map<String, Object> params = new HashMap<>();
-        params.put("key", key);
-        final String delete = "DELETE FROM " + table + " WHERE key = :key";
-        databaseSession.command(delete, params);
-        return Status.OK;
-      } catch (OConcurrentModificationException cme) {
-        // just continue
-      } catch (final Exception e) {
-        e.printStackTrace();
-        return Status.ERROR;
-      }
+    try {
+      final Map<String, Object> params = new HashMap<>();
+      params.put("key", key);
+      final String delete = "DELETE FROM " + table + " WHERE key = :key";
+      databaseSession.command(delete, params);
+      return Status.OK;
+    } catch (OConcurrentModificationException cme) {
+      return Status.ERROR;
+    } catch (final Exception e) {
+      e.printStackTrace();
+      return Status.ERROR;
     }
+
   }
 
   @Override
