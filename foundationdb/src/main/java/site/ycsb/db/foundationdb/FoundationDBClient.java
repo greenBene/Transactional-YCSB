@@ -295,7 +295,6 @@ public class FoundationDBClient extends DB {
     String endRowKey = getEndRowKey(table);
     logger.debug("scan key from {} to {} limit {} ", startkey, endRowKey, recordcount);
     try {
-      // TODO Was previously a separate read only transaction. Should we change back?
       AsyncIterable<KeyValue> entryList = transaction.getRange(Tuple.from(startRowKey).pack(), Tuple.from(endRowKey).pack(),
           Math.max(recordcount, 0));
       List<KeyValue> entries = entryList.asList().join();

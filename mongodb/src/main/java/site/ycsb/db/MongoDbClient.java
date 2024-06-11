@@ -24,6 +24,7 @@
  */
 package site.ycsb.db;
 
+import com.mongodb.ReadConcern;
 import com.mongodb.client.*;
 import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
@@ -90,12 +91,6 @@ public class MongoDbClient extends DB {
   /** A singleton Mongo instance. */
   private static MongoClient mongoClient;
 
-  /** The default read preference for the test. */
-  private static ReadPreference readPreference; //TODO reimplement if required
-
-  /** The default write concern for the test. */
-  private static WriteConcern writeConcern; //TODO reimplement if required
-
   /** The batch size to use for inserts. */
   private static int batchSize;
 
@@ -146,7 +141,7 @@ public class MongoDbClient extends DB {
 
       Document query = new Document("_id", key);
       DeleteResult result =
-          collection.withWriteConcern(writeConcern).deleteOne(currentSession, query);
+          collection.deleteOne(currentSession, query);
       if (result.wasAcknowledged() && result.getDeletedCount() == 0) {
         System.err.println("Nothing deleted for key " + key);
         return Status.NOT_FOUND;
@@ -201,20 +196,14 @@ public class MongoDbClient extends DB {
       }
 
       try {
-        String databaseName = "ycsb"; // TODO reimplement logic?
-//        if (!defaultedUrl) {
-//          databaseName = "ycsb";
-//        } else {
-//          // If no database is specified in URI, use "ycsb"
-//          databaseName = "ycsb";
-//        }
-
+        String databaseName = "ycsb";
 
         mongoClient = MongoClients.create(url);
-        database = mongoClient.getDatabase(databaseName);
-
-        writeConcern = WriteConcern.ACKNOWLEDGED;
-        readPreference = ReadPreference.primary();
+        database = mongoClient
+            .getDatabase(databaseName)
+            .withWriteConcern(WriteConcern.MAJORITY)
+            .withReadConcern(ReadConcern.MAJORITY)
+            .withReadPreference(ReadPreference.primary());
 
         currentSession = mongoClient.startSession();
 
@@ -224,7 +213,6 @@ public class MongoDbClient extends DB {
             .println("Could not initialize MongoDB connection pool for Loader: "
                 + e1.toString());
         e1.printStackTrace();
-        return;
       }
     }
   }

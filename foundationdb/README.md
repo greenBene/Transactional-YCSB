@@ -41,7 +41,7 @@ See the next section for the list of configuration parameters for FoundationDB.
 
 #### Running on macOS
 
-To use the foundationdb binding on macOS, you need to copy the libfdb_c library to your current folde: 
+To use the foundationdb binding on macOS, you need to copy the libfdb_c library to your current folder: 
 
     cp /usr/local/lib/libfdb_c.dylib ./
 
