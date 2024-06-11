@@ -88,9 +88,6 @@ public class OrientDBClient extends DB {
       }
       ODatabaseType dbType = urlHelper.getDbType().orElse(ODatabaseType.PLOCAL);
       orient.createIfNotExists(dbName, dbType);
-      if (!orient.isOpen()) {
-        orient.open(dbName, cp.getUser(), cp.getPassword());
-      }
       databaseSession = orient.open(dbName, cp.getUser(), cp.getPassword());
 
 
