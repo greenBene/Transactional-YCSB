@@ -32,13 +32,13 @@ To read more about the YCSB+T see this paper:
 
 
 ## Supported Bindings
-While this fork includes the code of all bindings available in the YCSB at the time of forking, not all bindings 
-are updated to support transactions yet. At the moment, the following bindings are updated to support 
-transactional workloads:
-
+Not all bindings from the original YCSB are or can be updated to use transactions. Only the following bindings
+are currently updated and fully supported by this project:
 * [x] foundationdb-binding
 * [x] mongodb-binding
 * [x] orientdb-binding
+
+The code of the other bindings that were part of YCSB at the time of forking are available in the folder `./binding-archive`.
 
 
 ## Building from source
