@@ -76,6 +76,22 @@ public class GoodBadUglyDB extends DB {
 
   }
 
+
+  @Override
+  public Status start() {
+    return Status.OK;
+  }
+
+  @Override
+  public Status commit() {
+    return Status.OK;
+  }
+
+  @Override
+  public Status rollback() {
+    return Status.OK;
+  }
+
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
    */

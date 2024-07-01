@@ -82,27 +82,21 @@ public abstract class DB {
    *
    * @return The result of the operation
    */
-  public Status start() {
-    return Status.OK;
-  }
+  public abstract Status start();
 
   /**
    * Commit the currently active transaction of the db instance
    *
    * @return The result of the operation
    */
-  public Status commit() {
-    return Status.OK;
-  }
+  public abstract Status commit();
 
   /**
    * Rollback the currently active transaction of the db instance
    *
    * @return The result of the operation
    */
-  public Status rollback() {
-    return Status.OK;
-  }
+  public abstract Status rollback();
 
   /**
    * Read a record from the database. Each field/value pair from the result will be stored in a HashMap.

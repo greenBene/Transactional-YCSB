@@ -518,7 +518,23 @@ public class TestTimeSeriesWorkload {
     final List<String> keys = new ArrayList<String>();
     final List<Map<String, ByteIterator>> values = 
         new ArrayList<Map<String, ByteIterator>>();
-    
+
+
+    @Override
+    public Status start() {
+      return Status.OK;
+    }
+
+    @Override
+    public Status commit() {
+      return Status.OK;
+    }
+
+    @Override
+    public Status rollback() {
+      return Status.OK;
+    }
+
     @Override
     public Status read(String table, String key, Set<String> fields,
                        Map<String, ByteIterator> result) {
