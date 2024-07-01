@@ -16,60 +16,34 @@ permissions and limitations under the License. See accompanying
 LICENSE file.
 -->
 
-YCSB
-====================================
-[![Build Status](https://travis-ci.org/brianfrankcooper/YCSB.png?branch=master)](https://travis-ci.org/brianfrankcooper/YCSB)
+# Transactional YCSB
+
+This project is a fork of the [YCSB](https://github.com/brianfrankcooper/YCSB). 
+It adapts the benchmark to run all operations in all workloads within transactions 
+and introduces a new workload that allows the benchmarking of transactions with 
+any number of read, update, insert, and scan operations.
+
+The project understand itself as a continuation of the [YCSB+T](https://github.com/brianfrankcooper/YCSB/pull/169) 
+from 2014. While YCSB+T focuses on the benchmarking of transactional overhead and the detection of consistency anomalies,
+this fork enables the benchmarking of transactions with increasing length.  
+
+To read more about the YCSB+T see this paper: 
+> A. Dey, A. Fekete, R. Nambiar and U. Röhm, "YCSB+T: Benchmarking web-scale transactional databases," 2014 IEEE 30th International Conference on Data Engineering Workshops, Chicago, IL, USA, 2014, pp. 223-230, doi: 10.1109/ICDEW.2014.6818330. keywords: {Benchmark testing;Distributed databases;Throughput;Google;Scalability;Protocols},
 
 
+## Supported Bindings
+While this fork includes the code of all bindings available in the YCSB at the time of forking, not all bindings 
+are updated to support transactions yet. At the moment, the following bindings are updated to support 
+transactional workloads:
 
-Links
------
-* To get here, use https://ycsb.site
-* [Our project docs](https://github.com/brianfrankcooper/YCSB/wiki)
-* [The original announcement from Yahoo!](https://labs.yahoo.com/news/yahoo-cloud-serving-benchmark/)
-
-Getting Started
----------------
-
-1. Download the [latest release of YCSB](https://github.com/brianfrankcooper/YCSB/releases/latest):
-
-    ```sh
-    curl -O --location https://github.com/brianfrankcooper/YCSB/releases/download/0.17.0/ycsb-0.17.0.tar.gz
-    tar xfvz ycsb-0.17.0.tar.gz
-    cd ycsb-0.17.0
-    ```
-    
-2. Set up a database to benchmark. There is a README file under each binding 
-   directory.
-
-3. Run YCSB command. 
-
-    On Linux:
-    ```sh
-    bin/ycsb.sh load basic -P workloads/workloada
-    bin/ycsb.sh run basic -P workloads/workloada
-    ```
-
-    On Windows:
-    ```bat
-    bin/ycsb.bat load basic -P workloads\workloada
-    bin/ycsb.bat run basic -P workloads\workloada
-    ```
-
-  Running the `ycsb` command without any argument will print the usage. 
-   
-  See https://github.com/brianfrankcooper/YCSB/wiki/Running-a-Workload
-  for a detailed documentation on how to run a workload.
-
-  See https://github.com/brianfrankcooper/YCSB/wiki/Core-Properties for 
-  the list of available workload properties.
+* [x] foundationdb-binding
+* [x] mongodb-binding
+* [x] orientdb-binding
 
 
-Building from source
---------------------
+## Building from source
 
-YCSB requires the use of Maven 3; if you use Maven 2, you may see [errors
-such as these](https://github.com/brianfrankcooper/YCSB/issues/406).
+YCSB requires the use of Maven 3.
 
 To build the full distribution, with all database bindings:
 
