@@ -19,9 +19,9 @@ LICENSE file.
 # Transactional YCSB
 
 This project is a fork of the [YCSB](https://github.com/brianfrankcooper/YCSB). 
-It adapts the benchmark to run all operations in all workloads within transactions 
-and introduces a new workload that allows the benchmarking of transactions with 
-any number of read, update, insert, and scan operations.
+It adapts the benchmark to run all operations within transactions 
+and introduces a new workload that allows the benchmarking of transactions 
+with any number of read, update, insert, and scan operations.
 
 The project understand itself as a continuation of the [YCSB+T](https://github.com/brianfrankcooper/YCSB/pull/169) 
 from 2014. While YCSB+T focuses on the benchmarking of transactional overhead and the detection of consistency anomalies,
