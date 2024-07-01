@@ -23,11 +23,10 @@
 #   Request distribution: zipfian
 
 recordcount=10000
-operationcount=4000
+operationcount=8000
 workload=site.ycsb.workloads.TransactionWorkload
 core_workload_insertion_retry_limit=5
 readallfields=true
-
 transactionReadCount=3
 transactionUpdateCount=3
 transactionInsertCount=0

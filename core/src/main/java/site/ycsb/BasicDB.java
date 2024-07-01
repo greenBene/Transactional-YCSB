@@ -124,6 +124,25 @@ public class BasicDB extends DB {
     return sb;
   }
 
+
+  @Override
+  public Status start() {
+    System.out.println("Starting a new transaction");
+    return Status.OK;
+  }
+
+  @Override
+  public Status commit() {
+    System.out.println("Commiting the current transaction");
+    return Status.OK;
+  }
+
+  @Override
+  public Status rollback() {
+    System.out.println("Rolling the current transaction back");
+    return Status.OK;
+  }
+
   /**
    * Read a record from the database. Each field/value pair from the result will be stored in a HashMap.
    *
