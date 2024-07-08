@@ -16,6 +16,7 @@ package site.ycsb.db;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
+import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.exception.OSchemaException;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
@@ -88,7 +89,12 @@ public class OrientDBClient extends DB {
         orient.drop(dbName);
       }
       ODatabaseType dbType = urlHelper.getDbType().orElse(ODatabaseType.PLOCAL);
-      orient.createIfNotExists(dbName, dbType);
+      try{
+        orient.createIfNotExists(dbName, dbType);
+      } catch (ODatabaseException e) {
+        LOG.info("Database already exists, skipping creation");
+      }
+
       databaseSession = orient.open(dbName, cp.getUser(), cp.getPassword());
 
       try{
