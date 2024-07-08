@@ -16,6 +16,7 @@ package site.ycsb.db;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
+import com.orientechnologies.orient.core.exception.OSchemaException;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.OElement;
@@ -90,16 +91,19 @@ public class OrientDBClient extends DB {
       orient.createIfNotExists(dbName, dbType);
       databaseSession = orient.open(dbName, cp.getUser(), cp.getPassword());
 
+      try{
+        final OClass newClass = databaseSession.createClassIfNotExist(CLASS);
+        LOG.info("OrientDB class created = " + CLASS);
+        if (!newClass.existsProperty("key")) {
+          newClass.createProperty("key", OType.STRING);
+        }
 
-      final OClass newClass = databaseSession.createClassIfNotExist(CLASS);
-      LOG.info("OrientDB class created = " + CLASS);
-      if (!newClass.existsProperty("key")) {
-        newClass.createProperty("key", OType.STRING);
+        LOG.info("OrientDB class property created = 'key'.");
+
+        createIndexForCollection(dbName);
+      } catch (OSchemaException e) {
+        LOG.info("Class already exists");
       }
-
-      LOG.info("OrientDB class property created = 'key'.");
-
-      createIndexForCollection(dbName);
 
       LOG.info("OrientDB successfully initialized.");
 
