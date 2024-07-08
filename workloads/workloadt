@@ -22,13 +22,13 @@
 #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
 #   Request distribution: zipfian
 
-recordcount=10000
-operationcount=8000
+recordcount=5000000
+operationcount=1200000
 workload=site.ycsb.workloads.TransactionWorkload
 core_workload_insertion_retry_limit=5
 readallfields=true
-transactionReadCount=3
-transactionUpdateCount=3
+transactionReadCount=9
+transactionUpdateCount=1
 transactionInsertCount=0
 transactionScanCount=0
 
