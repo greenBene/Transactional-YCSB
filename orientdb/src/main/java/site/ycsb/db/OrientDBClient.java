@@ -91,7 +91,7 @@ public class OrientDBClient extends DB {
       ODatabaseType dbType = urlHelper.getDbType().orElse(ODatabaseType.PLOCAL);
       try{
         orient.createIfNotExists(dbName, dbType);
-      } catch (ODatabaseException e) {
+      } catch (Exception e) {
         LOG.info("Database already exists, skipping creation");
       }
 
