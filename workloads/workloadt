@@ -16,11 +16,9 @@
 
 # Yahoo! Cloud System Benchmark
 # Workload T: Transaction Based Workload
-#   Application example: Session store recording recent actions
 #
-#   Read/update ratio: 50/50
 #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
-#   Request distribution: zipfian
+#   Request distribution: uniform
 
 recordcount=5000000
 operationcount=300000
@@ -32,5 +30,5 @@ transactionUpdateCount=1
 transactionInsertCount=0
 transactionScanCount=0
 
-requestdistribution=zipfian
+requestdistribution=uniform
 
