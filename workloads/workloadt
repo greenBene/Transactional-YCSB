@@ -21,7 +21,10 @@
 #   Request distribution: uniform
 
 recordcount=5000000
+
+# Number of transactions:
 operationcount=300000
+
 workload=site.ycsb.workloads.TransactionWorkload
 core_workload_insertion_retry_limit=5
 readallfields=true
